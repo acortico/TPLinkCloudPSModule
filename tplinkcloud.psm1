@@ -29,7 +29,8 @@ function Connect-TPLinkCloud {
         $token = $login.result.token
         $uri = $config.configuration.param.uri+$token
 
-        return $uri
+        [Environment]::SetEnvironmentVariable("TPLinkURI", $uri, "Process")
+        
     }
     else{
         "Web Request failed, try again."
@@ -40,15 +41,13 @@ function Connect-TPLinkCloud {
 function Get-TPLinkDevice {
     #Parameters
     Param(
-    [parameter(Mandatory=$true)]
-    [String]
-    $uri,
     [parameter(Mandatory=$false)]
     [String]
     $alias
     )
     #Json Body Build
     $getDevicesList = '{"method":"getDeviceList"}'
+    $uri = [environment]::GetEnvironmentVariable("TPLinkURI", "Process")
 
     # get Json Request
     $deviceList = get-JsonRequest -url $uri -jsonBody $getDevicesList
@@ -60,7 +59,6 @@ function Get-TPLinkDevice {
         return $device
     }
     else {
-        "no alias"
         return $devices
     }    
 
@@ -71,9 +69,6 @@ function Set-TPLinkDevice {
     Param(
     [parameter(Mandatory=$True)]
     [String]
-    $uri,
-    [parameter(Mandatory=$True)]
-    [String]
     $deviceId,
     [parameter(Mandatory=$True, ParameterSetName = 'ON')]
     [Switch]
@@ -82,7 +77,7 @@ function Set-TPLinkDevice {
     [Switch]
     $off
     )
-   
+    $uri = [environment]::GetEnvironmentVariable("TPLinkURI", "Process")
     if($deviceId){
         #Json Body Build
         If($on){
@@ -112,12 +107,9 @@ function Get-TPLinkDeviceStatus{
  Param(
     [parameter(Mandatory=$True)]
     [String]
-    $uri,
-    [parameter(Mandatory=$True)]
-    [String]
     $deviceId
     )
-    
+    $uri = [environment]::GetEnvironmentVariable("TPLinkURI", "Process")
     if($deviceId){
         #Json Body Build
         $sysinfo = '{"method":"passthrough","params": {"deviceId":"'+$deviceId+'","requestData":"{\"system\":{\"get_sysinfo\":null}}" }}'
@@ -137,32 +129,35 @@ function Get-TPLinkDeviceStatus{
 
 function Get-TPLinkDeviceStatistics{
     Param(
-       [parameter(Mandatory=$True)]
+       [parameter(Mandatory=$True,position=1)]
        [String]
-       $uri,
-       [parameter(Mandatory=$True)]
-       [String]
-       $deviceId,
-       [parameter(Mandatory=$True, ParameterSetName = 'Daily')]
+       $DeviceId,
+       [parameter(Mandatory=$True,position=2, ParameterSetName = 'Daily')]
        [Switch]
-       $daily,
+       $Daily,
        [parameter(Mandatory=$True, ParameterSetName = 'Monthly')]
        [Switch]
-       $monthly
-       )
-
-       $date = get-date
+       $Monthly,
+       [parameter(Mandatory=$True, ParameterSetName = 'Daily')]
+       [int]
+       $Month,
+       [parameter(Mandatory=$True)]
+       [int]
+       $Year
+    )
+    $uri = [environment]::GetEnvironmentVariable("TPLinkURI", "Process")
+       #$date = get-date
 
        if($deviceId){
            if($daily){
-                $emeterd = '{"method":"passthrough","params": {"deviceId": "'+$deviceId+'","requestData":"{\"emeter\":{\"get_daystat\":{\"month\":'+$date.month+',\"year\":'+$date.year+'}}}" }}'
+                $emeterd = '{"method":"passthrough","params": {"deviceId": "'+$deviceId+'","requestData":"{\"emeter\":{\"get_daystat\":{\"month\":'+$month+',\"year\":'+$year+'}}}" }}'
                 $deviceStats = get-JsonRequest -url $uri -jsonBody $emeterd
                 $deviceDstats = convertfrom-json $deviceStats.result.responseData
                 $dailyList = $deviceDstats.emeter.get_daystat.day_list
                 return $dailyList
             }   
             if($monthly){
-                $emeterm = '{"method":"passthrough","params": {"deviceId": "'+$deviceId+'","requestData":"{\"emeter\":{\"get_monthstat\":{\"year\":'+$dateyear+'}}}" }}'
+                $emeterm = '{"method":"passthrough","params": {"deviceId": "'+$deviceId+'","requestData":"{\"emeter\":{\"get_monthstat\":{\"year\":'+$year+'}}}" }}'
                 $deviceStats = get-JsonRequest -url $uri -jsonBody $emeterm
                 $deviceMStats = convertfrom-json $deviceStats.result.responseData
                 $monthlyList = $deviceMstats.emeter.get_monthstat.month_list
@@ -170,10 +165,13 @@ function Get-TPLinkDeviceStatistics{
             }   
        }
    }
-### Get Device info
+
+Export-ModuleMember -Function Get-TPLinkDevice, Get-TPLinkDeviceStatistics, Get-TPLinkDeviceStatus, Connect-TPLinkCloud
+
+   ### Get Device info
 function get_info{
     
-    
+    $uri = [environment]::GetEnvironmentVariable("TPLinkURI", "Process")
     $jsonrequest = Invoke-WebRequest -Uri $uri -Method Post -ContentType application/json -Body $sysinfo
     $jsonresponse = ConvertFrom-Json $jsonrequest
     $deviceSysInfo = convertfrom-json $jsonresponse.result.responseData
@@ -190,6 +188,7 @@ function get_info{
 
 ### Get Current Reading
 function Get_Reading{
+    $uri = [environment]::GetEnvironmentVariable("TPLinkURI", "Process")
     $jsonrequest = Invoke-WebRequest -Uri $uri -Method Post -ContentType application/json -Body $emeter
     $jsonresponse = ConvertFrom-Json $jsonrequest
     $deviceReading = convertfrom-json $jsonresponse.result.responseData
@@ -198,40 +197,9 @@ function Get_Reading{
     #$output | Export-csv -Path devicereadings.csv -NoTypeInformation -Append
 }
 
-### Get Daily Stats
-function Get_DailyStat{
-    ##GET Device Time##
-
-    $emeterd = '{"method":"passthrough","params": {"deviceId": "'+$device.deviceId+'","requestData":"{\"emeter\":{\"get_daystat\":{\"month\":'+$deviceTime.time.get_time.month+',\"year\":'+$deviceTime.time.get_time.year+'}}}" }}'
-    $jsonrequest = Invoke-WebRequest -Uri $uri -Method Post -ContentType application/json -Body $emeterd
-    $jsonresponse = ConvertFrom-Json $jsonrequest
-    $deviceDstats = convertfrom-json $jsonresponse.result.responseData
-    Write-Output $deviceDstats.emeter.get_daystat.day_list
-}
-
-### Get Monthly Stats
-function Get_MonthlyStat{
-    $emeterm = '{"method":"passthrough","params": {"deviceId": "'+$device.deviceId+'","requestData":"{\"emeter\":{\"get_monthstat\":{\"year\":'+$deviceTime.time.get_time.year+'}}}" }}'
-    $jsonrequest = Invoke-WebRequest -Uri $uri -Method Post -ContentType application/json -Body $emeterm
-    $jsonresponse = ConvertFrom-Json $jsonrequest
-    $deviceMStats = convertfrom-json $jsonresponse.result.responseData
-    Write-Output $deviceMstats.emeter.get_monthstat.month_list
-}
 
 
 
-### Write to file ###
-
-
-#$jsonrequest =Invoke-WebRequest -Uri $uri -Method Post -ContentType application/json -Body $emeter
-
-#$jsonresponse = ConvertFrom-Json $jsonrequest
-
-#$data = ConvertFrom-Json $jsonresponse.result.responseData
-#$result | select result| Export-csv -Path test.csv -NoTypeInformation -Append
-#$jsonrequest =Invoke-WebRequest -Uri $uri -Method Post -ContentType application/json -Body $emeterd
-#$result = ConvertFrom-Json $jsonrequest
-#$result | select result| Export-csv -Path daily.csv -NoTypeInformation -Append
 
 
 ##### Commands #####
@@ -240,17 +208,17 @@ function Get_MonthlyStat{
 
 #$on=  '{"method":"passthrough","params": {"deviceId": "'+$device.deviceid+'","requestData": "{\"system\":{\"set_relay_state\":{\"state\":1}}}" }}'
 
-$sysinfo = '{"method":"passthrough","params": {"deviceId":"'+$device.deviceId+'","requestData":"{\"system\":{\"get_sysinfo\":null},\"emeter\":{\"get_realtime\":null},\"time\":{\"get_time\":null}}" }}'
+#$sysinfo = '{"method":"passthrough","params": {"deviceId":"'+$device.deviceId+'","requestData":"{\"system\":{\"get_sysinfo\":null},\"emeter\":{\"get_realtime\":null},\"time\":{\"get_time\":null}}" }}'
                                                                                          #     "{\"system\":{\"get_sysinfo\":null},\"emeter\":{\"get_realtime\":null}}"
                                                                                 
-$emeter = '{"method":"passthrough","params":  {"deviceId":"'+$device.deviceId+'","requestData":"{\"emeter\":{\"get_realtime\":null}}" }}'
+#$emeter = '{"method":"passthrough","params":  {"deviceId":"'+$device.deviceId+'","requestData":"{\"emeter\":{\"get_realtime\":null}}" }}'
 
 #$emeterd = '{"method":"passthrough","params": {"deviceId": "'+$device.deviceId+'","requestData":"{\"emeter\":{\"get_daystat\":{\"month\":6,\"year\":2017}}}" }}'
                                                                                                                                 
 #$emeterm = '{"method":"passthrough","params": {"deviceId": "'+$device.deviceId+'","requestData":"{\"emeter\":{\"get_monthstat\":{\"year\":2017}}}" }}'
                                                                                                                                 
-$emeterreset = '{"method":"passthrough","params": {"deviceId": "'+$device.deviceId+'","requestData":"{\"emeter\":{\"erase_emeter_stat\":null}}" }}'
+#$emeterreset = '{"method":"passthrough","params": {"deviceId": "'+$device.deviceId+'","requestData":"{\"emeter\":{\"erase_emeter_stat\":null}}" }}'
 
-$emetercalib = '{"method":"passthrough","params": {"deviceId": "'+$device.deviceId+'","requestData":"{\"emeter\":{\"get_vgain_igain\":null}}" }}'
+#$emetercalib = '{"method":"passthrough","params": {"deviceId": "'+$device.deviceId+'","requestData":"{\"emeter\":{\"get_vgain_igain\":null}}" }}'
 
-$getSchedule ='{"method":"passthrough","params": {"deviceId": "'+$device.deviceId+'","requestData":"{\"schedule\":{\"get_rules\":null}}" }}'
+#$getSchedule ='{"method":"passthrough","params": {"deviceId": "'+$device.deviceId+'","requestData":"{\"schedule\":{\"get_rules\":null}}" }}'
