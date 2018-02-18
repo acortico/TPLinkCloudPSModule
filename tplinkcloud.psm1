@@ -1,6 +1,4 @@
-﻿### Importing module config file
-[xml]$config = Get-Content .\tplink.config
-
+﻿
 function Get-JsonRequest($url, $jsonBody){
 
      $jsonrequest =Invoke-WebRequest -Uri $url -Method Post -ContentType application/json -Body $jsonBody
@@ -19,15 +17,15 @@ function Connect-TPLinkCloud {
     $cred=(Get-Credential)
     $passwd = $Cred.GetNetworkCredential().Password
     $user = $cred.UserName
-    $termid = $config.configuration.param.termid
-    $url = $config.configuration.param.url
-    $login_payload = '{"method":"login","url":"'+$url+'","params": {"appType":"Kasa_Android","cloudPassword":"' + $passwd +'","cloudUserName":"'+ $user+'","terminalUUID":"'+$termid+'"} }'
+    $termid =  [guid]::NewGuid()
+    $url = "https://wap.tplinkcloud.com"
+    $login_payload = '{"method":"login","url":"'+$url+'","params": {"appType":"Powershell","cloudPassword":"' + $passwd +'","cloudUserName":"'+ $user+'","terminalUUID":"'+$termid+'"} }'
 
     $login = get-JsonRequest -url $url -jsonBody $login_payload
 
     if($login.result.email){
         $token = $login.result.token
-        $uri = $config.configuration.param.uri+$token
+        $uri = "https://eu-wap.tplinkcloud.com/?token="+$token
 
         [Environment]::SetEnvironmentVariable("TPLinkURI", $uri, "Process")
         
@@ -94,10 +92,10 @@ function Set-TPLinkDevice {
         
         if($jsonresponse.error_code -eq 0) {
             if($on){
-                Write-Host $device.alias "ON"
+                Write-Host $device.alias "ON" #### TO FIX
             }
             if($off){
-                Write-Host $device.alias "OFF"
+                Write-Host $device.alias "OFF" #### TO FIX
             }
         }
     }    
@@ -121,8 +119,8 @@ function Get-TPLinkDeviceStatus{
         $deviceStatus = $deviceSysInfo.system.get_sysinfo.relay_state
 
         switch ($deviceStatus){
-            0 {write-host $device.alias "is OFF"}
-            1 {write-host $device.alias "is ON"}
+            0 {write-host $deviceSysInfo.system.get_sysinfo.alias "is OFF"}
+            1 {write-host $deviceSysInfo.system.get_sysinfo.alias "is ON"}
         }
     }
 }
@@ -166,7 +164,7 @@ function Get-TPLinkDeviceStatistics{
        }
    }
 
-Export-ModuleMember -Function Get-TPLinkDevice, Get-TPLinkDeviceStatistics, Get-TPLinkDeviceStatus, Connect-TPLinkCloud
+Export-ModuleMember -Function Get-TPLinkDevice, Get-TPLinkDeviceStatistics, Get-TPLinkDeviceStatus, Set-TPLinkDevice, Connect-TPLinkCloud
 
    ### Get Device info
 function get_info{
