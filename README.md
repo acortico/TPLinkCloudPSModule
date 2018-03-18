@@ -18,48 +18,48 @@ historic
     
 # TPLinkCloudPSModule Functions
 
-1.  Connect-TPLinkCloud
+1.  Connect-TPLinkCloud -
     Connect your powershell session to TP-Link Cloud API
 
-2.  Get-TPLinkDevice
+2.  Get-TPLinkDevice - 
     Retrives the list of devices on your account.
     
-3.  Set-TPLinkDevice
+3.  Set-TPLinkDevice - 
     Allows you to trun on or off a device:
 
     Set-TPLinkDevice -deviceId <string> -on 
     Set-TPLinkDevice -deviceId <string> -off 
  
-4.  Get-TPLinkDeviceStatus
+4.  Get-TPLinkDeviceStatus - 
     Returns the current status of the device ON/OFF
 
     Get-TPLinkDeviceStatus [-deviceId] <string>
     
-5.  Get-TPLinkDeviceSysInfo
+5.  Get-TPLinkDeviceSysInfo - 
     Returns device system information.
     
     Get-TPLinkDeviceSysInfo [-deviceId] <string>
     
-6.  Get-TPLinkDeviceStatistics
+6.  Get-TPLinkDeviceStatistics - 
     Returns your device energy meter stats.
     
-    For daily stats:
+    For daily stats: 
     Get-TPLinkDeviceStatistics [-DeviceId] <string> [-Daily] -Month <int> -Year <int>
     
-    For monthly stats:
+    For monthly stats: 
     Get-TPLinkDeviceStatistics [-DeviceId] <string> -Monthly -Year <int>
     
-7.  Get-TPLinkDeviceRealTime
+7.  Get-TPLinkDeviceRealTime - 
     Returns device real time energy consumption
     
     Get-TPLinkDeviceRealTime [-deviceId] <string>
 
-8.  Get-TPLinkDeviceSchedule
+8.  Get-TPLinkDeviceSchedule - 
     Returns the device schedule plan
     
     Get-TPLinkDeviceSchedule [-deviceId] <string>
     
-9.  Export-TPLinkDeviceStatistics
+9.  Export-TPLinkDeviceStatistics - 
     Exports all statistics in JSON format
     
     Export-TPLinkDeviceStatistics [-deviceId] <string>
