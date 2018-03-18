@@ -125,6 +125,26 @@ function Get-TPLinkDeviceStatus{
     }
 }
 
+function Get-TPLinkDeviceSysInfo{
+    Param(
+       [parameter(Mandatory=$True)]
+       [String]
+       $deviceId
+       )
+       $uri = [environment]::GetEnvironmentVariable("TPLinkURI", "Process")
+       if($deviceId){
+           #Json Body Build
+           $sysinfo = '{"method":"passthrough","params": {"deviceId":"'+$deviceId+'","requestData":"{\"system\":{\"get_sysinfo\":null}}" }}'
+     
+           # get Json Request 
+           $deviceInfo = get-JsonRequest -url $uri -jsonBody $sysinfo
+           
+           $deviceSysInfo = convertfrom-json $deviceInfo.result.responseData
+           return $deviceSysInfo.system.get_sysinfo
+        }
+       
+   }
+
 function Get-TPLinkDeviceStatistics{
     Param(
        [parameter(Mandatory=$True,position=1)]
@@ -144,59 +164,118 @@ function Get-TPLinkDeviceStatistics{
        $Year
     )
     $uri = [environment]::GetEnvironmentVariable("TPLinkURI", "Process")
-       #$date = get-date
 
+    if($deviceId){
+        if($daily){
+            $emeterd = '{"method":"passthrough","params": {"deviceId": "'+$deviceId+'","requestData":"{\"emeter\":{\"get_daystat\":{\"month\":'+$month+',\"year\":'+$year+'}}}" }}'
+            $deviceStats = get-JsonRequest -url $uri -jsonBody $emeterd
+            $deviceDstats = convertfrom-json $deviceStats.result.responseData
+            $dailyList = $deviceDstats.emeter.get_daystat.day_list
+            return $dailyList
+        }   
+        if($monthly){
+            $emeterm = '{"method":"passthrough","params": {"deviceId": "'+$deviceId+'","requestData":"{\"emeter\":{\"get_monthstat\":{\"year\":'+$year+'}}}" }}'
+            $deviceStats = get-JsonRequest -url $uri -jsonBody $emeterm
+            $deviceMStats = convertfrom-json $deviceStats.result.responseData
+            $monthlyList = $deviceMstats.emeter.get_monthstat.month_list
+            return $monthlyList       
+        }   
+    }
+}
+   
+   function Get-TPLinkDeviceRealTime{
+    Param(
+       [parameter(Mandatory=$True)]
+       [String]
+       $deviceId
+       )
+       $uri = [environment]::GetEnvironmentVariable("TPLinkURI", "Process")
        if($deviceId){
-           if($daily){
-                $emeterd = '{"method":"passthrough","params": {"deviceId": "'+$deviceId+'","requestData":"{\"emeter\":{\"get_daystat\":{\"month\":'+$month+',\"year\":'+$year+'}}}" }}'
-                $deviceStats = get-JsonRequest -url $uri -jsonBody $emeterd
-                $deviceDstats = convertfrom-json $deviceStats.result.responseData
-                $dailyList = $deviceDstats.emeter.get_daystat.day_list
-                return $dailyList
-            }   
-            if($monthly){
-                $emeterm = '{"method":"passthrough","params": {"deviceId": "'+$deviceId+'","requestData":"{\"emeter\":{\"get_monthstat\":{\"year\":'+$year+'}}}" }}'
-                $deviceStats = get-JsonRequest -url $uri -jsonBody $emeterm
-                $deviceMStats = convertfrom-json $deviceStats.result.responseData
-                $monthlyList = $deviceMstats.emeter.get_monthstat.month_list
-                return $monthlyList
-            }   
-       }
+           #Json Body Build
+           $jsonBody = '{"method":"passthrough","params":  {"deviceId":"'+$deviceId+'","requestData":"{\"emeter\":{\"get_realtime\":null}}" }}'
+     
+           # get Json Request 
+           $jsonResponse = get-JsonRequest -url $uri -jsonBody $jsonBody
+           
+           $deviceEmeter = convertfrom-json $jsonResponse.result.responseData
+
+           $reading =  $deviceEmeter.emeter.get_realtime |select-object current,voltage,power,total 
+           return $reading
+       }       
    }
 
-Export-ModuleMember -Function Get-TPLinkDevice, Get-TPLinkDeviceStatistics, Get-TPLinkDeviceStatus, Set-TPLinkDevice, Connect-TPLinkCloud
+   function Get-TPLinkDeviceSchedule{
+    Param(
+       [parameter(Mandatory=$True)]
+       [String]
+       $deviceId
+       )
+       $uri = [environment]::GetEnvironmentVariable("TPLinkURI", "Process")
+       if($deviceId){
+           #Json Body Build
+           $jsonBody = '{"method":"passthrough","params": {"deviceId": "'+$deviceId+'","requestData":"{\"schedule\":{\"get_rules\":null}}" }}'
+     
+           # get Json Request 
+           $jsonResponse = get-JsonRequest -url $uri -jsonBody $jsonBody
+           
+           $deviceSchedule = convertfrom-json $jsonResponse.result.responseData
 
-   ### Get Device info
-function get_info{
+           $scheduleRules =  $deviceSchedule.schedule.get_rules.rule_list 
+           return $scheduleRules
+       }       
+   }
+
+function Export-TPLinkDeviceStatistics{
+    Param(
+    [parameter(Mandatory=$True)]
+    [String]
+    $deviceId
+    )
     
-    $uri = [environment]::GetEnvironmentVariable("TPLinkURI", "Process")
-    $jsonrequest = Invoke-WebRequest -Uri $uri -Method Post -ContentType application/json -Body $sysinfo
-    $jsonresponse = ConvertFrom-Json $jsonrequest
-    $deviceSysInfo = convertfrom-json $jsonresponse.result.responseData
-    #write-output $deviceSysInfo.system.get_sysinfo $deviceSysInfo.time.get_time
-    $info = $deviceSysInfo.system.get_sysinfo |select-object alias,mac,relay_state,on_time,latitude,longitude
-    $time = $deviceSysInfo.time.get_time |select-object year,month,mday,wday,hour,min,sec
-    $reading = $deviceSysInfo.emeter.get_realtime |select-object current,voltage,power,total 
-    write-output $time | Format-Table
-    write-output $info | Format-Table
-    write-output $reading | Format-Table
+    if($deviceId){
+        Get-TPLinkDeviceSysInfo -deviceId $deviceId | ConvertTo-Json | out-file sysinfo.json
+        
+        Get-TPLinkDeviceRealTime -deviceId $deviceId| ConvertTo-Json | out-file RealTime.json
+
+        $currentDate = Get-Date
+
+        # get monthly
+        $i=0
+        Do {
+            $mStats = Get-TPLinkDeviceStatistics -DeviceId $deviceId -Monthly -Year $currentDate.AddYears($i).Year 
+            $totalMStats = $totalMStats + $mStats
+            $i--
+            $empty = $false
+            
+            if($mStats.count -like 0){
+                $empty = $True
+            }
+        }until ($empty -like $True)
+   
+        $totalMStats | ConvertTo-Json|  out-file .\MonthlyStats.json
+
+        # get Daily
+        $i=0
+        Do {
+            for ($m = 12; $m -gt 0; $m--) {
+                $dStats = Get-TPLinkDeviceStatistics -DeviceId $deviceId -Daily -Month $m -Year $currentDate.AddYears($i).Year 
+                $totaldStats = $totaldStats + $dStats
+            }
+            $empty = $false
+            $i--
+            if($dStats.count -like 0){
+                $empty = $True
+            }
+        }until ($empty -like $True)
+        
+   
+        $totaldStats | ConvertTo-Json|  out-file .\DailyStats.json
+    
+    }
+}
+Export-ModuleMember -Function Get-TPLinkDevice, Get-TPLinkDeviceStatistics, Get-TPLinkDeviceStatus, Get-TPLinkDeviceSysInfo, Get-TPLinkDeviceRealTime, Get-TPLinkDeviceSchedule, Set-TPLinkDevice, Connect-TPLinkCloud, Export-TPLinkDeviceStatistics
 
  
-}
-
-### Get Current Reading
-function Get_Reading{
-    $uri = [environment]::GetEnvironmentVariable("TPLinkURI", "Process")
-    $jsonrequest = Invoke-WebRequest -Uri $uri -Method Post -ContentType application/json -Body $emeter
-    $jsonresponse = ConvertFrom-Json $jsonrequest
-    $deviceReading = convertfrom-json $jsonresponse.result.responseData
-    write-output $deviceReading.emeter.get_realtime 
-    $output = $deviceReading.emeter.get_realtime 
-    #$output | Export-csv -Path devicereadings.csv -NoTypeInformation -Append
-}
-
-
-
 
 
 
